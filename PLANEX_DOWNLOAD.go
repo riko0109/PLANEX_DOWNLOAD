@@ -3,10 +3,15 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 func main() {
@@ -22,26 +27,31 @@ func main() {
 
 	//設定ファイル存在確認
 	if !Exists(exepath + "\\config.json") {
-		log.Println("configfile is not exist!")
+		log.Println("configfile is not exist!" + exepath + "\\config.json")
 		bufio.NewScanner(os.Stdin).Scan()
-		return
+		os.Exit(1)
 	}
+
+	loggingsetting(exepath + "\\HTTP_Failed.log")
 
 	//設定を読み込む配列
 	configdata, err := loadconfig(exepath + "\\config.json")
 	if err != nil {
-		log.Println("config decode failed:", err)
+		log.Println(err)
 	}
-	fmt.Println(configdata)
 
-	//url := "https://svcipp.planex.co.jp/api/get_data.php?type=WS-USB01-THP&mac=24:72:60:40:03:2C&from=2020-09-04&to=2020-09-05&token=ea76a9d229497075beace88e674be9a6"
+	response, _ := http.Get(configdata[0].url())
+	for i := 0; response.StatusCode != 200 && i < 10; i++ {
+		body, _ := ioutil.ReadAll(response.Body)
+		log.Print(string(body))
+		response, _ = http.Get(configdata[0].url())
+	}
 
-	//response, _ := http.Get(url)
-	//body, _ := ioutil.ReadAll(response.Body)
-	//defer response.Body.Close()
+	body, _ := ioutil.ReadAll(response.Body)
+	defer response.Body.Close()
 
-	//fmt.Println(url)
-	//fmt.Println(string(body))
+	fmt.Println(string(body))
+	bufio.NewScanner(os.Stdin).Scan()
 }
 
 //ファイルの存在確認をする関数
@@ -50,23 +60,51 @@ func Exists(name string) bool {
 	return !os.IsNotExist(err)
 }
 
-func loadconfig(path string) (*[]config, error) {
+//コンフィグJSONを読み込み構造体に変換する関数
+func loadconfig(path string) ([]config, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		log.Fatalln("config load failed:", err)
-		return nil, err
+		return nil, errors.New("config open failed! : ")
+	}
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, errors.New("config load failed : ")
 	}
 	defer file.Close()
-	var configarr []config
-	err = json.NewDecoder(file).Decode(&configarr)
-	return &configarr, err
+
+	var configs []config
+
+	err = json.Unmarshal(b, &configs)
+	if err != nil {
+		return nil, errors.New("json→struct convert failed : ")
+	}
+	return configs, err
 }
 
+func loggingsetting(logfilepath string) {
+	logfile, _ := os.OpenFile(logfilepath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	multilogfile := io.MultiWriter(os.Stdout, logfile)
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+	log.SetOutput(multilogfile)
+}
+
+//JSONから読み込んだ設定の構造体
 type config struct {
-	DeviceName string `json:'DeviceName'`
-	NicName    string `json:'NicName'`
-	MacAddress string `json:'MacAddress'`
-	Token      string `json:'Token'`
-	SavePath   string `json:'Save_Path'`
-	SaveUnit   string `json:'Save_Unit'`
+	DeviceName string `json:"DeviceName"`
+	NicName    string `json:"NicName"`
+	MacAddress string `json:"MacAddress"`
+	Token      string `json:"Token"`
+	SavePath   string `json:"SavePath"`
+	SaveUnit   string `json:"SaveUnit"`
+	Url        string
+}
+
+//URLを返却する関数
+func (c *config) url() string {
+	url := "https://svcipp.planex.co.jp/api/get_.php?type=" + c.DeviceName +
+		"&mac=" + c.MacAddress +
+		"&from=" + time.Now().AddDate(0, 0, -1).Format("2006-01-02") +
+		"&to=" + time.Now().Format("2006-01-02") +
+		"&token=" + c.Token
+	return url
 }
