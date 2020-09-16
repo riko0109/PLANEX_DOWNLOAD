@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,17 +41,15 @@ func main() {
 		log.Println(err)
 	}
 
-	response, _ := http.Get(configdata[0].url())
-	for i := 0; response.StatusCode != 200 && i < 10; i++ {
-		body, _ := ioutil.ReadAll(response.Body)
-		log.Print(string(body))
-		response, _ = http.Get(configdata[0].url())
+	for i := 0; i < len(configdata); i++ {
+		err := configdata[i].getstringarrayfromapi()
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
-
-	body, _ := ioutil.ReadAll(response.Body)
-	defer response.Body.Close()
-
-	fmt.Println(string(body))
+	fmt.Println(configdata[0].url())
+	//fmt.Println(configdata[0].GetData)
+	configdata[0].createcsv()
 	bufio.NewScanner(os.Stdin).Scan()
 }
 
@@ -81,10 +80,15 @@ func loadconfig(path string) ([]config, error) {
 	return configs, err
 }
 
+//ログを吐き出すもろもろの設定をする関数
 func loggingsetting(logfilepath string) {
+	//ログファイルを開く
 	logfile, _ := os.OpenFile(logfilepath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	//ログファイルを標準出力とテキストファイルに出力する設定
 	multilogfile := io.MultiWriter(os.Stdout, logfile)
+	//出力する項目を設定
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+	//設定を実行
 	log.SetOutput(multilogfile)
 }
 
@@ -97,14 +101,53 @@ type config struct {
 	SavePath   string `json:"SavePath"`
 	SaveUnit   string `json:"SaveUnit"`
 	Url        string
+	GetData    [][]string
 }
+
+type jsontype [][]string
 
 //URLを返却する関数
 func (c *config) url() string {
-	url := "https://svcipp.planex.co.jp/api/get_.php?type=" + c.DeviceName +
+	url := "https://svcipp.planex.co.jp/api/get_data.php?type=" + c.DeviceName +
 		"&mac=" + c.MacAddress +
 		"&from=" + time.Now().AddDate(0, 0, -1).Format("2006-01-02") +
 		"&to=" + time.Now().Format("2006-01-02") +
 		"&token=" + c.Token
 	return url
+}
+
+//API叩いてデータを取得して文字列型に変換して構造体のGetDataに格納する関数
+func (c *config) getstringarrayfromapi() error {
+	response, _ := http.Get(c.url())
+
+	for i := 0; i < 10 && response.StatusCode != 200; i++ {
+		body, _ := ioutil.ReadAll(response.Body)
+		log.Println(string(body))
+		response, _ = http.Get(c.url())
+	}
+	if response.StatusCode != 200 {
+		return errors.New("apireturn is timeout!")
+	}
+	body, _ := ioutil.ReadAll(response.Body)
+	defer response.Body.Close()
+
+	if err := json.Unmarshal(body, &c.GetData); err != nil {
+		log.Fatal(err)
+	}
+	return nil
+}
+
+//csvを生成してデータを書き込む関数
+func (c *config) createcsv() error {
+	file, err := os.OpenFile(c.SavePath+"\\"+c.NicName+time.Now().AddDate(0, 0, -1).Format("20060102")+".csv", os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return errors.New("File Create Failed!")
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	writer.UseCRLF = true
+	writer.WriteAll(c.GetData)
+	writer.Flush()
+	return nil
 }
