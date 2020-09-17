@@ -46,10 +46,12 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
+		err = configdata[i].createcsv()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
-	fmt.Println(configdata[0].url())
-	//fmt.Println(configdata[0].GetData)
-	configdata[0].createcsv()
+	fmt.Println("コンソールを終了するには何かキーを押してください…")
 	bufio.NewScanner(os.Stdin).Scan()
 }
 
@@ -99,30 +101,30 @@ type config struct {
 	MacAddress string `json:"MacAddress"`
 	Token      string `json:"Token"`
 	SavePath   string `json:"SavePath"`
-	SaveUnit   string `json:"SaveUnit"`
+	From       int    `json:"From"`
+	To         int    `json:"To"`
 	Url        string
 	GetData    [][]string
 }
-
-type jsontype [][]string
 
 //URLを返却する関数
 func (c *config) url() string {
 	url := "https://svcipp.planex.co.jp/api/get_data.php?type=" + c.DeviceName +
 		"&mac=" + c.MacAddress +
-		"&from=" + time.Now().AddDate(0, 0, -1).Format("2006-01-02") +
-		"&to=" + time.Now().Format("2006-01-02") +
+		"&from=" + time.Now().AddDate(0, 0, c.From).Format("2006-01-02") +
+		"&to=" + time.Now().AddDate(0, 0, c.To+1).Format("2006-01-02") +
 		"&token=" + c.Token
 	return url
 }
 
 //API叩いてデータを取得して文字列型に変換して構造体のGetDataに格納する関数
 func (c *config) getstringarrayfromapi() error {
+	fmt.Println(c.NicName + ":ダウンロード開始!")
 	response, _ := http.Get(c.url())
 
-	for i := 0; i < 10 && response.StatusCode != 200; i++ {
+	for i := 0; i < 20 && response.StatusCode != 200; i++ {
 		body, _ := ioutil.ReadAll(response.Body)
-		log.Println(string(body))
+		log.Println(string(body) + ":" + response.Status)
 		response, _ = http.Get(c.url())
 	}
 	if response.StatusCode != 200 {
@@ -134,14 +136,19 @@ func (c *config) getstringarrayfromapi() error {
 	if err := json.Unmarshal(body, &c.GetData); err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println(c.NicName + ":ダウンロード完了!")
 	return nil
 }
 
 //csvを生成してデータを書き込む関数
 func (c *config) createcsv() error {
-	file, err := os.OpenFile(c.SavePath+"\\"+c.NicName+time.Now().AddDate(0, 0, -1).Format("20060102")+".csv", os.O_WRONLY|os.O_CREATE, 0600)
+	filename := c.SavePath + "\\" + c.NicName + "_" +
+		time.Now().AddDate(0, 0, c.From).Format("20060102") + "_" +
+		time.Now().AddDate(0, 0, c.To).Format("20060102") + ".csv"
+
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
-		return errors.New("File Create Failed!")
+		return errors.New("csvFile Create or Open Failed!")
 	}
 	defer file.Close()
 
@@ -149,5 +156,6 @@ func (c *config) createcsv() error {
 	writer.UseCRLF = true
 	writer.WriteAll(c.GetData)
 	writer.Flush()
+	fmt.Println(c.NicName + ": csv書き込み完了!")
 	return nil
 }
