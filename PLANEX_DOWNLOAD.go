@@ -12,7 +12,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
+)
+
+const (
+	configfilename string = "config.json"                                        //設定ファイルのファイル名
+	logfilename    string = "Log.log"                                            //ログファイルのファイル名
+	url            string = "https://svcipp.planex.co.jp/api/get_data.php?type=" //APIのURL
 )
 
 func main() {
@@ -27,57 +34,69 @@ func main() {
 	exepath = filepath.Dir(exepath)
 
 	//設定ファイル存在確認
-	if !Exists(exepath + "\\config.json") {
-		log.Println("configfile is not exist!" + exepath + "\\config.json")
+	if !exists(filepath.Join(exepath, configfilename)) {
+		log.Println(filepath.Join(exepath+configfilename) + "が存在しません")
 		bufio.NewScanner(os.Stdin).Scan()
-		os.Exit(1)
+		return
 	}
-
-	loggingsetting(exepath + "\\HTTP_Failed.log")
+	//ログ書き出し設定
+	loggingsetting(filepath.Join(exepath, logfilename))
 
 	//設定を読み込む配列
-	configdata, err := loadconfig(exepath + "\\config.json")
+	configdata, err := loadconfig(filepath.Join(exepath, configfilename))
 	if err != nil {
-		log.Println(err)
+		log.Fatalln(err)
 	}
-
+	//goroutine待ち合わせ用構造体
+	var wg sync.WaitGroup
+	//並列処理でAPI叩いてCSV書き出しまで
 	for i := 0; i < len(configdata); i++ {
-		err := configdata[i].getstringarrayfromapi()
-		if err != nil {
-			log.Fatalln(err)
-		}
-		err = configdata[i].createcsv()
-		if err != nil {
-			log.Fatal(err)
-		}
+		//処理開始時にwgのカウント加算
+		wg.Add(1)
+		go func(i2 int) {
+			err := configdata[i2].getstringarrayfromapi()
+			if err != nil {
+				log.Panicln(err)
+			}
+			err = configdata[i2].createcsv()
+			if err != nil {
+				log.Panicln(err)
+			}
+			//処理終了時にwgの処理減算
+			defer wg.Done()
+		}(i)
 	}
+	//wgのカウントが0になるまで待機
+	wg.Wait()
 	fmt.Println("コンソールを終了するには何かキーを押してください…")
 	bufio.NewScanner(os.Stdin).Scan()
 }
 
-//ファイルの存在確認をする関数
-func Exists(name string) bool {
+//ファイルがあるかどうかを調べる関数
+func exists(name string) bool {
 	_, err := os.Stat(name)
 	return !os.IsNotExist(err)
 }
 
 //コンフィグJSONを読み込み構造体に変換する関数
 func loadconfig(path string) ([]config, error) {
+	//ファイルを開く
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, errors.New("config open failed! : ")
+		return nil, err
 	}
+	//ファイルを読み取る
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, errors.New("config load failed : ")
+		return nil, err
 	}
 	defer file.Close()
 
 	var configs []config
-
+	//jsonを構造体のスライスに変換
 	err = json.Unmarshal(b, &configs)
 	if err != nil {
-		return nil, errors.New("json→struct convert failed : ")
+		return nil, err
 	}
 	return configs, err
 }
@@ -85,6 +104,10 @@ func loadconfig(path string) ([]config, error) {
 //ログを吐き出すもろもろの設定をする関数
 func loggingsetting(logfilepath string) {
 	//ログファイルを開く
+	//os.O_RDWR=読書FLAG
+	//os.O_CREATE=存在しなかったら生成
+	//os.O_APPEND=存在したら追記
+	//0666=パーミッション
 	logfile, _ := os.OpenFile(logfilepath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	//ログファイルを標準出力とテキストファイルに出力する設定
 	multilogfile := io.MultiWriter(os.Stdout, logfile)
@@ -96,20 +119,19 @@ func loggingsetting(logfilepath string) {
 
 //JSONから読み込んだ設定の構造体
 type config struct {
-	DeviceName string `json:"DeviceName"`
-	NicName    string `json:"NicName"`
-	MacAddress string `json:"MacAddress"`
-	Token      string `json:"Token"`
-	SavePath   string `json:"SavePath"`
-	From       int    `json:"From"`
-	To         int    `json:"To"`
-	Url        string
-	GetData    [][]string
+	DeviceName string     `json:"DeviceName"` //デバイス名 WS-USB01-THPとか
+	NicName    string     `json:"NicName"`    //名前　サーバールームとか
+	MacAddress string     `json:"MacAddress"` //MACアドレス
+	Token      string     `json:"Token"`      //トークン
+	SavePath   string     `json:"SavePath"`   //CSVを保存するディレクトリ
+	From       int        `json:"From"`       //何日前から 実行日から1日前なら-1
+	To         int        `json:"To"`         //何日目迄取得するか　実行日までなら0
+	GetData    [][]string //APIから返却されてきたJSON用のジャグ配列
 }
 
 //URLを返却する関数
 func (c *config) url() string {
-	url := "https://svcipp.planex.co.jp/api/get_data.php?type=" + c.DeviceName +
+	url := url + c.DeviceName +
 		"&mac=" + c.MacAddress +
 		"&from=" + time.Now().AddDate(0, 0, c.From).Format("2006-01-02") +
 		"&to=" + time.Now().AddDate(0, 0, c.To+1).Format("2006-01-02") +
@@ -120,19 +142,22 @@ func (c *config) url() string {
 //API叩いてデータを取得して文字列型に変換して構造体のGetDataに格納する関数
 func (c *config) getstringarrayfromapi() error {
 	fmt.Println(c.NicName + ":ダウンロード開始!")
+	//APIにGETリクエスト
 	response, _ := http.Get(c.url())
-
+	//レスポンスのステータスが200になるまで20回繰り返す
 	for i := 0; i < 20 && response.StatusCode != 200; i++ {
-		body, _ := ioutil.ReadAll(response.Body)
-		log.Println(string(body) + ":" + response.Status)
+		log.Println(c.NicName + ":" + response.Status + "リトライ")
 		response, _ = http.Get(c.url())
 	}
+	//20回のリクエストでレスポンスが無かったらタイムアウト
 	if response.StatusCode != 200 {
-		return errors.New("apireturn is timeout!")
+		return errors.New("APIからのレスポンスがタイムアウトしました")
 	}
+	//レスポンスのボディを読み取り
 	body, _ := ioutil.ReadAll(response.Body)
 	defer response.Body.Close()
 
+	//GetDataにジャグ配列として格納
 	if err := json.Unmarshal(body, &c.GetData); err != nil {
 		log.Fatal(err)
 	}
@@ -142,20 +167,26 @@ func (c *config) getstringarrayfromapi() error {
 
 //csvを生成してデータを書き込む関数
 func (c *config) createcsv() error {
+	//ファイルネームは名前+FROM+TO
 	filename := c.SavePath + "\\" + c.NicName + "_" +
 		time.Now().AddDate(0, 0, c.From).Format("20060102") + "_" +
 		time.Now().AddDate(0, 0, c.To).Format("20060102") + ".csv"
 
+	//ファイルを開く
 	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
-		return errors.New("csvFile Create or Open Failed!")
+		return err
 	}
+	//関数終了時にクローズ
 	defer file.Close()
 
+	//CSV書き込み
 	writer := csv.NewWriter(file)
 	writer.UseCRLF = true
+	//バッファにためてから
 	writer.WriteAll(c.GetData)
 	writer.Flush()
+	//バッファ内を書き込み
 	fmt.Println(c.NicName + ": csv書き込み完了!")
 	return nil
 }

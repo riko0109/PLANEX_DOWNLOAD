@@ -4,7 +4,7 @@
         "NicName"   :"サーバールーム",
         "MacAddress":"24:72:60:40:03:2C",
         "Token"     :"ea76a9d229497075beace88e674be9a6",
-        "SavePath" :"C:\\",
+        "SavePath" :"D:\\",
         "From" :-3,
         "To" :-3
     },      
@@ -13,7 +13,7 @@
         "NicName"   :"サーバールーム2",
         "MacAddress":"24:72:60:40:03:2C",
         "Token"     :"ea76a9d229497075beace88e674be9a6",
-        "SavePath" :"C:\\",
+        "SavePath" :"D:\\",
         "From" :-1,
         "To" :0
     }
