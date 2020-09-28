@@ -1,20 +1,10 @@
 [
-    {
-        "DeviceName":"WS-USB01-THP",
-        "NicName"   :"サーバールーム",
-        "MacAddress":"24:72:60:40:03:2C",
-        "Token"     :"ea76a9d229497075beace88e674be9a6",
-        "SavePath" :"D:\\",
-        "From" :-3,
-        "To" :-3
-    },      
-    {
-        "DeviceName":"WS-USB01-THP",
-        "NicName"   :"サーバールーム2",
-        "MacAddress":"24:72:60:40:03:2C",
-        "Token"     :"ea76a9d229497075beace88e674be9a6",
-        "SavePath" :"D:\\",
-        "From" :-1,
-        "To" :0
-    }
+  {
+    "DeviceName": "REPLACE",
+    "NicName": "REPLACE",
+    "MacAddress": "REPLACE",
+    "Token": "REPLACE",
+    "SavePath": "REPLACE",
+    "From": -3
+  }
 ]

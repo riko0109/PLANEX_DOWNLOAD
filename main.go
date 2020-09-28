@@ -2,10 +2,8 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -14,7 +12,7 @@ import (
 )
 
 const (
-	configfilename string = "config.json" //設定ファイルのファイル名
+	configfilename string = "config.yaml" //設定ファイルのファイル名
 	logfilename    string = "Log.log"     //ログファイルのファイル名
 )
 
@@ -39,7 +37,7 @@ func main() {
 	loggingsetting(filepath.Join(exepath, logfilename))
 
 	//設定を読み込む配列
-	configdata, err := loadconfig(filepath.Join(exepath, configfilename))
+	configdata, err := config.Loadconfig(filepath.Join(exepath, configfilename))
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -72,29 +70,6 @@ func main() {
 func exists(name string) bool {
 	_, err := os.Stat(name)
 	return !os.IsNotExist(err)
-}
-
-//コンフィグJSONを読み込み構造体に変換する関数
-func loadconfig(path string) ([]config.Config, error) {
-	//ファイルを開く
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	//ファイルを読み取る
-	b, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var configs []config.Config
-	//jsonを構造体のスライスに変換
-	err = json.Unmarshal(b, &configs)
-	if err != nil {
-		return nil, err
-	}
-	return configs, err
 }
 
 //ログを吐き出すもろもろの設定をする関数
