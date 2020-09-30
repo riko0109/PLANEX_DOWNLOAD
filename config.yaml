@@ -2,13 +2,13 @@
     #製品名です 例:WH-USB01-THP
     DeviceName: "WS-USB01-THP"
     #各デバイスに付けた名前です
-    NicName   : "サーバールーム"
+    NicName   : "replace"
     #MACアドレスです　製品裏面に記載があります
-    MacAddress: "24:72:60:40:03:2C"
+    MacAddress: "replace"
     #API叩くようのトークンです　PLANEXのサイトにログインすると確認できます
-    Token     : "ea76a9d229497075beace88e674be9a6"
+    Token     : "replace"
     #ダウンロードデータの保存先パスです
-    SavePath : "D:\\"
+    SavePath : "replace"
     #データ取得日を現在日付から何日の形式で指定します
     #下記の例だと現在の日付から三日前のデータを一日分取得します
     From : -2
