@@ -28,7 +28,7 @@ func main() {
 	exepath = filepath.Dir(exepath)
 
 	//設定ファイル存在確認
-	if !exists(filepath.Join(exepath, configfilename)) {
+	if !config.Exists(filepath.Join(exepath, configfilename)) {
 		log.Println(filepath.Join(exepath+configfilename) + "が存在しません")
 		bufio.NewScanner(os.Stdin).Scan()
 		return
@@ -64,12 +64,6 @@ func main() {
 	wg.Wait()
 	fmt.Println("コンソールを終了するには何かキーを押してください…")
 	bufio.NewScanner(os.Stdin).Scan()
-}
-
-//ファイルがあるかどうかを調べる関数
-func exists(name string) bool {
-	_, err := os.Stat(name)
-	return !os.IsNotExist(err)
 }
 
 //ログを吐き出すもろもろの設定をする関数
