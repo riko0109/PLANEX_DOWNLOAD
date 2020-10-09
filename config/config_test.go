@@ -25,3 +25,22 @@ func TestUrlsuccess(t *testing.T) { //url正常形
 	}
 	t.Log("TestUrlsuccess：OK")
 }
+func TestExistssuccess(t *testing.T) { //exist正常形
+	result := Exists("C:")
+	expect := true
+
+	if result != expect {
+		t.Error("Result:", result, "Expect:", expect)
+	}
+	t.Log("Testexistsuccess:OK")
+}
+
+func TestExistsfail(t *testing.T) { //exist異常形
+	result := Exists("a:")
+	expect := false
+
+	if result != expect {
+		t.Error("Result:", result, "Expect:", expect)
+	}
+	t.Log("Testexistsuccess:OK")
+}

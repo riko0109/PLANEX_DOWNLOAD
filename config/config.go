@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -82,7 +83,7 @@ func (c *Configyaml) Getstringarrayfromapi() error {
 	//APIにGETリクエスト
 	response, _ := http.Get(c.URL())
 	//レスポンスのステータスが200になるまで20回繰り返す
-	for i := 0; i < 20 && response.StatusCode != 200; i++ {
+	for response.StatusCode != 200 {
 		log.Println(c.NicName + ":" + response.Status + "リトライ")
 		response, _ = http.Get(c.URL())
 	}
@@ -104,10 +105,17 @@ func (c *Configyaml) Getstringarrayfromapi() error {
 
 //Createcsv is csvを生成してデータを書き込む関数
 func (c *Configyaml) Createcsv() error {
+	if !Exists(filepath.Join(c.SavePath, time.Now().AddDate(0, 0, c.From).Format("200601"))) {
+		err := os.Mkdir(filepath.Join(c.SavePath, time.Now().AddDate(0, 0, c.From).Format("200601")), 0777)
+		if err != nil {
+			return err
+		}
+	}
+	c.SavePath = filepath.Join(c.SavePath, time.Now().AddDate(0, 0, c.From).Format("200601"))
 	//ファイルネームは名前+FROM+TO
-	filename := c.SavePath + "\\" + c.NicName + "_" +
-		time.Now().AddDate(0, 0, c.From).Format("20060102") + "_" +
-		time.Now().AddDate(0, 0, c.To).Format("20060102") + ".csv"
+	filename := filepath.Join(c.SavePath, c.NicName+"_"+
+		time.Now().AddDate(0, 0, c.From).Format("20060102")+"_"+
+		time.Now().AddDate(0, 0, c.To).Format("20060102")+".csv")
 
 	//ファイルを開く
 	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0600)
@@ -126,4 +134,10 @@ func (c *Configyaml) Createcsv() error {
 	//バッファ内を書き込み
 	fmt.Println(c.NicName + ": csv書き込み完了!")
 	return nil
+}
+
+//Exists is ファイルがあるかどうかを調べる関数
+func Exists(name string) bool {
+	_, err := os.Stat(name)
+	return !os.IsNotExist(err)
 }
