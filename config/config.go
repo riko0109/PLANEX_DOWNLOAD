@@ -83,7 +83,7 @@ func (c *Configyaml) Getstringarrayfromapi() error {
 	//APIにGETリクエスト
 	response, _ := http.Get(c.URL())
 	//レスポンスのステータスが200になるまで20回繰り返す
-	for i := 0; i < 20 && response.StatusCode != 200; i++ {
+	for response.StatusCode != 200 {
 		log.Println(c.NicName + ":" + response.Status + "リトライ")
 		response, _ = http.Get(c.URL())
 	}
